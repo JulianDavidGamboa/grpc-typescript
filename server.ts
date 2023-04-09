@@ -3,6 +3,8 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoloader from '@grpc/proto-loader';
 import { ProtoGrpcType } from './proto/random';
 import { RandomHandlers } from './proto/randomPackage/Random';
+import { TodoResponse } from './proto/randomPackage/TodoResponse';
+import { TodoRequest } from './proto/randomPackage/TodoRequest';
 
 const PORT = 8082;
 const PROTO_FILE = './proto/random.proto';
@@ -25,11 +27,42 @@ function main() {
 
 }
 
+const todoList: TodoResponse = {todos: []}
+
 function getServer() {
     const server = new grpc.Server();
     server.addService(randomPackage.Random.service, {
-        "PingPong": (req, res) => {
-            console.log(req, res)
+        PingPong: (req, res) => {
+            console.log(req.request)
+            res(null, {message: "Pong"})
+        },
+        RandomNumbers: (call) => {
+            const { maxVal } = call.request;
+
+            console.log({maxVal});
+
+            let runCount = 0;
+            const id = setInterval(() => {
+                runCount = ++runCount;
+
+                call.write({num: Math.floor(Math.random() * Number(maxVal))})
+
+
+                if (runCount >= 10) {
+                    clearInterval(id);
+                    call.end()
+                }
+            }, 500)
+
+        },
+        TodoList: (call, callback) => {
+            call.on("data", (chunk: TodoRequest) => {
+                todoList.todos?.push(chunk);
+                console.log(chunk);
+            })
+            call.on("end", () => {
+                callback(null, {todos: todoList.todos})
+            })
         }
     } as RandomHandlers);
 
